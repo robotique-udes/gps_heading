@@ -1,22 +1,22 @@
 #!/usr/bin/env python
 
 import rospy
-from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Imu
-from geometry_msgs.msg import Pose, Quaternion, QuaternionStamped
+from sensor_msgs.msg import Imu, NavSatFix
+from geometry_msgs.msg import Quaternion, QuaternionStamped
 from math import sqrt, atan2, pi
 from tf import TransformListener
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from collections import deque
 from threading import Lock
+from geographiclib.geodesic import Geodesic
 
 class GpsHeading():
     def __init__(self):
         # ROS stuff
         rospy.init_node("gps_heading", anonymous = True)
-        self.gps_sub = rospy.Subscriber('/odometry/gps', Odometry, self.gpsCB)
+        self.gps_sub = rospy.Subscriber('/fix', NavSatFix, self.gpsCB)
         self.imu_sub = rospy.Subscriber('/imu/data', Imu, self.imuCB)
-        self.heading_pub = rospy.Publisher('/gps_heading', Imu, queue_size=1)
+        self.heading_pub = rospy.Publisher('/gps_heading', Imu, queue_size=1)  # TODO: change to pose?
         self.tf = TransformListener()
 
         # Parameters
@@ -116,12 +116,10 @@ class GpsHeading():
         for position in self.gps_position_queue:
             # Starting from the most recent previous position, find a previous position that is
             # farther than the minimum distance threshold
-            dx = msg.pose.pose.position.x - position.x
-            dy = msg.pose.pose.position.y - position.y
-            distance = sqrt(dx**2 + dy**2)
+            distance = calculate_distance(msg.latitude, msg.longitude, position[0], position[1])
 
             if distance > self.min_distance:
-                yaw = atan2(dy, dx)
+                yaw = calculate_bearing(msg.latitude, msg.longitude, position[0], position[1])
                 if not self.got_first_gps_heading:
                     rospy.loginfo("Got first gps heading")
                     self.previous_gps_heading = yaw
@@ -135,7 +133,7 @@ class GpsHeading():
                         if abs(self.relative_yaw) <= self.gps_heading_epsilon or self.nb_of_heading_disagreements >= self.max_nb_of_heading_disagreements:
                             rospy.loginfo("Correcting IMU heading with GPS heading")
                             self.nb_of_heading_disagreements = 0
-                            # Only use/update GPS heading if it has converged (aka the robot is going moving in a straight line). Otherwise, use IMU
+                            # Only use/update GPS heading if it has converged (aka the robot is moving in a straight line). Otherwise, use IMU
                             self.latest_gps_heading = yaw 
                             quaternion_orientation = quaternion_from_euler(self.latest_imu_euler_orientation[0],  self.latest_imu_euler_orientation[1], \
                                                                         self.latest_gps_heading)
@@ -149,23 +147,39 @@ class GpsHeading():
                             self.relative_yaw = 0  # Reset relative yaw since a new gps heading has arrived
                         else:
                             self.nb_of_heading_disagreements += 1
-                            rospy.loginfo("Heading disagreement number %d" % self.nb_of_heading_disagreements)
+                            rospy.loginfo("Number of heading disagreements: %d" % self.nb_of_heading_disagreements)
                     finally:
                         self.mutex.release()
                 
                 self.previous_gps_heading = yaw
                 break
-        self.gps_position_queue.appendleft(msg.pose.pose.position)
+        self.gps_position_queue.appendleft((msg.latitude, msg.longitude))
 
 
 def wrap_angle_pi(angle):
     # Wraps an angle in radians to -pi : pi
     return (angle + pi) % (2 * pi) - pi
 
+def calculate_bearing(p1, p2):
+    # Returns the bearing from point 1 to point 2 (lat/long). Angle is in degrees, from -180 to 180, with 0 pointing North.
+    # Positive is clockwise and negative is counter clockwise
+    geod = Geodesic.WGS84
+    return geod.Inverse(p1[0], p1[1], p2[0], p2[1])['azi1']
+
+def calculate_distance(p1, p2):
+    # Returns the distance in meters between two points (lat/long)
+    geod = Geodesic.WGS84
+    return geod.Inverse(p1[0], p1[1], p2[0], p2[1])['s12']
+
 
 if __name__ == '__main__':
-    gps_heading = GpsHeading()
-    rospy.loginfo("gps_heading ready")
-    gps_heading.run()
+    # gps_heading = GpsHeading()
+    # rospy.loginfo("gps_heading ready")
+    # gps_heading.run()
 
-    
+    geod = Geodesic.WGS84
+    p1 = (45.377886, -71.920422)
+    p2 = (45.377886, -71.920417)
+    g = geod.Inverse(p1[0], p1[1], p2[0], p2[1])
+    azimuth = g['azi1']
+    print(azimuth)
