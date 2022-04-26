@@ -12,6 +12,7 @@
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>python-geographiclib</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
