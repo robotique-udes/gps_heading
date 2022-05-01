@@ -15,19 +15,10 @@ class GpsHeading():
     def __init__(self):
         # ROS stuff
         rospy.init_node("gps_heading", anonymous = True)
-        self.gps_sub = rospy.Subscriber('/fix', NavSatFix, self.gpsCB, queue_size=1)
-        self.imu_sub = rospy.Subscriber('/imu/data', Imu, self.imuCB, queue_size=1)
-        self.heading_pub = rospy.Publisher('/gps_heading', Imu, queue_size=1)  # TODO: change to pose?
-        self.tf = TransformListener()
-
         # Parameters
-        self.publishing_rate = rospy.get_param("~publishing_rate", 10)  # Hz
-        self.min_distance = rospy.get_param("~min_distance", 5)  # TODO: ROS parameter
+        self.min_distance = rospy.get_param("~min_distance", 5)
         self.base_frame = rospy.get_param("~base_frame", "base_link")
         self.gps_positions_queue_length = rospy.get_param("~gps_positions_queue_length", 5)  # Newest positions are added on the left, oldest positions are on the right
-        self.orientation_covariance = [2.6030820491461885e-07, 0.0, 0.0, \
-                                       0.0, 2.6030820491461885e-07, 0.0, \
-                                       0.0, 0.0, 0.0]  # TODO: use better covariance values
 
         # GPS variables
         self.gps_position_queue = deque(maxlen=self.gps_positions_queue_length)
@@ -36,17 +27,19 @@ class GpsHeading():
         self.previous_gps_heading = 0
         self.gps_heading_has_converged = False  # Only switch to GPS heading once it has converged
         self.gps_heading_epsilon = rospy.get_param("~gps_heading_epsilon", 0.0174533)  # Maximum difference in radians between the current gps heading and previous gps heading to consider the heading converged
-        self.nb_of_heading_disagreements = 0  # Number of converged GPS headings that have been calculated since the IMU heading was last corrected
 
         # IMU variable
         self.got_first_imu_orientation = False
         self.previous_imu_orientation = Quaternion()
         self.relative_yaw = 0
-        self.latest_imu_euler_orientation = [0, 0, 0]
-        self.max_nb_of_heading_disagreements = rospy.get_param("~max_nb_of_heading_disagreements", 3)  # Number of times a disagreement between the IMU heading and the GPS heading will be tolerated before a correction is forced.
 
         # Other variables
         self.mutex = Lock()  # Mutex is used because the two callbacks run in their own thread but they use shared data
+
+        self.heading_pub = rospy.Publisher('/gps_heading', Imu, queue_size=1)
+        self.tf = TransformListener()
+        self.gps_sub = rospy.Subscriber('/fix', NavSatFix, self.gpsCB, queue_size=1)
+        self.imu_sub = rospy.Subscriber('/imu/data', Imu, self.imuCB, queue_size=1)
             
     def imuCB(self, msg):
         quat = QuaternionStamped()
@@ -85,7 +78,6 @@ class GpsHeading():
         heading_msg.orientation.w = absolute_quaternion_orientation[3]
         self.heading_pub.publish(heading_msg)
 
-        self.latest_imu_euler_orientation = current_imu_euler_orientation
         self.previous_imu_orientation = transformed_quat.quaternion
 
 
