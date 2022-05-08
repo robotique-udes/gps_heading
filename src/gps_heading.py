@@ -65,11 +65,11 @@ class GpsHeading():
             self.relative_yaw += wrap_angle_pi(current_imu_euler_orientation[2] - previous_imu_euler_orientation[2])
             self.relative_yaw = wrap_angle_pi(self.relative_yaw)
             absolute_yaw = wrap_angle_pi(self.relative_yaw + self.latest_gps_heading)
-            # print("current heading: %.2f" % degrees(absolute_yaw))
+            print("current heading: %.2f" % degrees(absolute_yaw))
         finally:
             self.mutex.release()
 
-        absolute_quaternion_orientation = quaternion_from_euler(current_imu_euler_orientation[0], current_imu_euler_orientation[1], absolute_yaw)
+        absolute_quaternion_orientation = quaternion_from_euler(0, 0, absolute_yaw)  # TODO: param to use zeros for X and Y or the values of the imu
 
         heading_msg = deepcopy(msg)
         heading_msg.orientation.x = absolute_quaternion_orientation[0]
