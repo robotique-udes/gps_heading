@@ -65,7 +65,7 @@ class GpsHeading():
             self.relative_yaw += wrap_angle_pi(current_imu_euler_orientation[2] - previous_imu_euler_orientation[2])
             self.relative_yaw = wrap_angle_pi(self.relative_yaw)
             absolute_yaw = wrap_angle_pi(self.relative_yaw + self.latest_gps_heading)
-            print("current heading: %.2f" % degrees(absolute_yaw))
+            # print("current heading: %.2f" % degrees(absolute_yaw))
         finally:
             self.mutex.release()
 
@@ -108,7 +108,7 @@ class GpsHeading():
                     try:
                         self.latest_gps_heading = yaw
                         self.relative_yaw = 0  # Reset relative yaw since a new gps heading has arrived 
-                        print("GPS heading: %.2f" % degrees(self.latest_gps_heading))
+                        # print("GPS heading: %.2f" % degrees(self.latest_gps_heading))
                     finally:
                         self.mutex.release()
                 
